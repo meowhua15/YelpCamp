@@ -8,7 +8,8 @@ const methodOverride = require('method-override');
 const Campground = require('./models/campground');
 const catchAsync = require('./utils/catchAsync');
 const ExpressError = require('./utils/ExpressError');
-const { campgroundSchema } = require('./schemas')
+const { campgroundSchema, reviewSchema } = require('./schemas')
+const Review = require('./models/review');
 
 app.engine('ejs', ejsMate);
 app.set('view engine', 'ejs');
@@ -31,6 +32,17 @@ app.use(methodOverride('_method'));
 
 const validateCampground = (req, res, next) => {
     const { error } = campgroundSchema.validate(req.body);
+    if (error) {
+        const msg = error.details.map(el => el.message).join(',')
+        throw new ExpressError(msg, 400)
+    }
+    else {
+        next();
+    }
+}
+
+const validateReview = (req, res, next) => {
+    const { error } = reviewSchema.validate(req.body);
     if (error) {
         const msg = error.details.map(el => el.message).join(',')
         throw new ExpressError(msg, 400)
@@ -74,7 +86,7 @@ app.put('/campgrounds/:id', validateCampground, catchAsync(async (req, res) => {
 // delete campground route
 app.delete('/campgrounds/:id', catchAsync(async (req, res) => {
     const { id } = req.params;
-    await Campground.findByIdAndRemove(id);
+    await Campground.findByIdAndDelete(id);
     res.redirect("/campgrounds")
 }))
 
@@ -88,8 +100,26 @@ app.get('/campgrounds/:id/edit', catchAsync(async (req, res) => {
 // detail campground info route 
 app.get('/campgrounds/:id', catchAsync(async (req, res) => {
     const { id } = req.params;
-    const foundCampground = await Campground.findById(id);
+    const foundCampground = await Campground.findById(id).populate('reviews');
     res.render('campgrounds/show', { foundCampground });
+}))
+
+// create review route
+app.post('/campgrounds/:id/reviews', validateReview, catchAsync(async (req, res) => {
+    const campground = await Campground.findById(req.params.id);
+    const review = new Review(req.body.review);
+    campground.reviews.push(review);
+    await review.save();
+    await campground.save();
+    res.redirect(`/campgrounds/${campground._id}`);
+}))
+
+// delete review route
+app.delete('/campgrounds/:id/reviews/:reviewId', catchAsync(async (req, res) => {
+    const { id, reviewId } = req.params;
+    await Campground.findByIdAndUpdate(id, { $pull: { reviews: reviewId } });
+    await Review.findByIdAndDelete(reviewId);
+    res.redirect(`/campgrounds/${id}`);
 }))
 
 app.all('*', (req, res, next) => {
@@ -104,6 +134,7 @@ app.use((err, req, res, next) => {
     }
     res.status(statusCode).render('error', { err })
 })
+
 
 app.listen(3000, () => {
     console.log('Serving on port 3000');
