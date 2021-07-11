@@ -4,6 +4,7 @@ const catchAsync = require('../utils/catchAsync');
 const ExpressError = require('../utils/ExpressError');
 const Campground = require('../models/campground');
 const { campgroundSchema } = require('../schemas')
+const isLoggedIn = require('../middleware');
 
 const validateCampground = (req, res, next) => {
     const { error } = campgroundSchema.validate(req.body);
@@ -23,12 +24,12 @@ router.get('/', catchAsync(async (req, res) => {
 }))
 
 // form to create new campground route
-router.get('/new', (req, res) => {
+router.get('/new', isLoggedIn, (req, res) => {
     res.render('campgrounds/new');
 })
 
 // create new campground route
-router.post('/', validateCampground, catchAsync(async (req, res) => {
+router.post('/', isLoggedIn, validateCampground, catchAsync(async (req, res) => {
     // if (!req.body.campground) throw new ExpressError('Invalid Campground Data', 400);
     const newCampground = new Campground(req.body.campground);
     await newCampground.save();
@@ -37,7 +38,7 @@ router.post('/', validateCampground, catchAsync(async (req, res) => {
 }))
 
 // edit campground route
-router.put('/:id', validateCampground, catchAsync(async (req, res) => {
+router.put('/:id', isLoggedIn, validateCampground, catchAsync(async (req, res) => {
     const { id } = req.params;
     const updatedCampground = await Campground.findByIdAndUpdate(id, req.body.campground, { new: true });
     req.flash('success', 'Successfully update the campground');
@@ -45,7 +46,7 @@ router.put('/:id', validateCampground, catchAsync(async (req, res) => {
 }))
 
 // delete campground route
-router.delete('/:id', catchAsync(async (req, res) => {
+router.delete('/:id', isLoggedIn, catchAsync(async (req, res) => {
     const { id } = req.params;
     await Campground.findByIdAndDelete(id);
     req.flash('warning', 'Successfully delete the campground');
@@ -53,7 +54,7 @@ router.delete('/:id', catchAsync(async (req, res) => {
 }))
 
 // form to edit campground route
-router.get('/:id/edit', catchAsync(async (req, res) => {
+router.get('/:id/edit', isLoggedIn, catchAsync(async (req, res) => {
     const { id } = req.params;
     const foundCampground = await Campground.findById(id);
     if (!foundCampground) {
